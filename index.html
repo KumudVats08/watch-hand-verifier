@@ -103,6 +103,24 @@
     .primary-button { border: 1px solid var(--ink); background: var(--ink); color: var(--paper); padding: 15px 25px; font-size: 13px; font-weight: 700; transition: background .2s, color .2s, transform .2s; }
     .primary-button:hover { background: var(--accent); color: var(--ink); transform: translateY(-2px); }
     .primary-button:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+    .bureaucracy-row { display: flex; align-items: center; gap: 10px; max-width: 560px; margin: 0 auto 20px; color: var(--muted); font-size: 11px; text-align: left; }
+    .bureaucracy-row input { width: 16px; height: 16px; accent-color: var(--accent-dark); }
+    .escape-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; transition: transform .18s; }
+    .escape-button:hover { transform: translateX(18px) rotate(-2deg); color: var(--accent-dark); }
+    .nav-note { min-height: 18px; margin: 15px 0 0; color: var(--accent-dark); font-size: 11px; }
+    .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(33,30,25,.36); }
+    .rules-overlay.hidden { display: none; }
+    .rules-dialog { width: min(100%, 620px); border: 2px solid var(--ink); background: var(--paper); padding: 28px; box-shadow: 10px 10px 0 rgba(33,30,25,.22); text-align: left; animation: enter .4s ease both; }
+    .rules-dialog h2 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 46px); line-height: 1; }
+    .rules-dialog .dialog-kicker { margin: 0 0 20px; color: var(--accent-dark); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .rules-copy { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .rules-list { margin: 18px 0 23px; padding: 0 0 0 19px; color: var(--ink); font-size: 12px; line-height: 1.8; }
+    .rules-consent { display: flex; align-items: flex-start; gap: 10px; padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink); font-size: 11px; line-height: 1.4; }
+    .rules-consent input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: var(--accent-dark); }
+    .rules-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 22px; }
+    .rules-reject { border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+    .rules-reject:hover { color: var(--accent-dark); }
+    @media (max-width: 600px) { .rules-dialog { padding: 22px; } .rules-actions { align-items: stretch; flex-direction: column-reverse; } }
     .secondary-button { border: 1px solid var(--ink); color: var(--ink); background: transparent; padding: 13px 24px; font-size: 13px; font-weight: 700; }
     .secondary-button:hover { background: var(--ink); color: var(--paper); }
     .math-stage { align-content: center; }
@@ -150,6 +168,25 @@
   </style>
 </head>
 <body>
+  <div class="rules-overlay" id="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div class="rules-dialog">
+      <p class="dialog-kicker">Important temporal preferences</p>
+      <h2 id="rulesTitle">Before you continue</h2>
+      <p class="rules-copy">This service uses absolutely necessary procedures to determine whether your watch is telling the truth.</p>
+      <ul class="rules-list">
+        <li>You must manually rotate both hands instead of reading your watch.</li>
+        <li>You must identify whether it is AM or PM, despite time being continuous.</li>
+        <li>You must complete a small arithmetic investigation before seeing any result.</li>
+        <li>Your answer may be rejected and the entire procedure may begin again.</li>
+      </ul>
+      <label class="rules-consent"><input id="rulesConsent" type="checkbox"> I have read, misunderstood, and agree to these rules and the unnecessary processing of my time.</label>
+      <div class="rules-actions">
+        <button class="rules-reject" id="rulesReject" type="button">I do not consent to knowing the time</button>
+        <button class="primary-button" id="rulesAccept" type="button" disabled>Accept and begin procedure</button>
+      </div>
+      <p class="nav-note" id="rulesNote" aria-live="polite"></p>
+    </div>
+  </div>
   <div class="app-shell">
     <header class="masthead">
       <div class="wordmark">Watch Accuracy Verifier</div>
@@ -178,7 +215,10 @@
           <div class="period-toggle" aria-label="AM or PM">
             <button type="button" data-period="AM">AM</button><button type="button" data-period="PM">PM</button>
           </div>
+          <label class="bureaucracy-row"><input id="complianceCheck" type="checkbox"> I acknowledge that looking at my watch directly would undermine this procedure.</label>
           <button class="primary-button" id="confirmTime" type="button" disabled>Confirm this is my watch's time</button>
+          <button class="escape-button" id="escapeButton" type="button">I would rather check my phone</button>
+          <p class="nav-note" id="navNote" aria-live="polite"></p>
         </div>
       </section>
 
@@ -187,7 +227,7 @@
         <h2 id="mathTitle" class="equation">58 + 24 × 2 - 17</h2>
         <form class="answer-form" id="answerForm">
           <input class="answer-input" id="answerInput" type="number" inputmode="numeric" autocomplete="off" aria-label="Arithmetic answer" placeholder="Your answer">
-          <button class="primary-button" type="submit">Submit answer</button>
+          <button class="primary-button" type="submit">Submit, probably</button>
         </form>
         <p class="math-note">First fix your attention span with a little mental maths</p>
       </section>
@@ -223,6 +263,14 @@
       const hourCount = document.getElementById('hourCount');
       const minuteCount = document.getElementById('minuteCount');
       const confirmTime = document.getElementById('confirmTime');
+      const rulesOverlay = document.getElementById('rulesOverlay');
+      const rulesConsent = document.getElementById('rulesConsent');
+      const rulesAccept = document.getElementById('rulesAccept');
+      const rulesReject = document.getElementById('rulesReject');
+      const rulesNote = document.getElementById('rulesNote');
+      const complianceCheck = document.getElementById('complianceCheck');
+      const escapeButton = document.getElementById('escapeButton');
+      const navNote = document.getElementById('navNote');
       const answerForm = document.getElementById('answerForm');
       const answerInput = document.getElementById('answerInput');
       const equation = document.getElementById('mathTitle');
@@ -238,6 +286,28 @@
       let minuteInteracted = false;
       let arithmeticAnswer = 0;
       let declaredTime = null;
+      let escapeCount = 0;
+
+      rulesConsent.addEventListener('change', () => {
+        rulesAccept.disabled = !rulesConsent.checked;
+      });
+
+      rulesAccept.addEventListener('click', () => {
+        rulesOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+        hourHand.focus();
+      });
+
+      rulesReject.addEventListener('click', () => {
+        rulesNote.textContent = 'A non-consent response has been recorded and respectfully ignored.';
+        rulesReject.textContent = 'I understand I must consent';
+      });
+
+      document.body.style.overflow = 'hidden';
+
+      function updateConfirmState() {
+        confirmTime.disabled = !(hourInteracted && minuteInteracted && period && complianceCheck.checked);
+      }
 
       function showStep(name) {
         Object.values(steps).forEach(step => step.classList.remove('active'));
@@ -290,7 +360,7 @@
         }
         lastAngle = angle;
         updateHand(activeHand, whole, next);
-        confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+        updateConfirmState();
       }
 
       function endDrag() {
@@ -316,8 +386,10 @@
         hourRotations = 0; minuteRotations = 0; hourProgress = 0; minuteProgress = 0; hourInteracted = false; minuteInteracted = false; period = null; declaredTime = null;
         updateHand('hour', 0); updateHand('minute', 0);
         periodButtons.forEach(button => button.classList.remove('selected'));
+        complianceCheck.checked = false;
         confirmTime.disabled = true;
         answerInput.value = '';
+        navNote.textContent = '';
         showStep('clock');
       }
 
@@ -365,7 +437,7 @@
               minuteRotations = Math.floor(minuteProgress);
               updateHand('minute', minuteRotations, minuteProgress);
             }
-            confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+            updateConfirmState();
           }
         });
       });
@@ -373,8 +445,22 @@
       periodButtons.forEach(button => button.addEventListener('click', () => {
         period = button.dataset.period;
         periodButtons.forEach(item => item.classList.toggle('selected', item === button));
-        confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+        updateConfirmState();
       }));
+
+      complianceCheck.addEventListener('change', updateConfirmState);
+
+      escapeButton.addEventListener('click', () => {
+        escapeCount++;
+        const messages = [
+          'That would be sensible. Unfortunately, it is not authorized.',
+          'Your phone has been notified of this attempted shortcut.',
+          'Excellent choice. The button remains purely ceremonial.',
+          'The bureau admires your persistence.'
+        ];
+        navNote.textContent = messages[Math.min(escapeCount - 1, messages.length - 1)];
+        escapeButton.textContent = escapeCount > 2 ? 'Try escaping again' : 'I would rather check my phone';
+      });
 
       confirmTime.addEventListener('click', () => {
         const hour = hourRotations % 12 || 12;
