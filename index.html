@@ -57,6 +57,7 @@
     }
     .wordmark { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .file-number { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+    .bureaucracy-score { color: var(--accent-dark); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
     main { width: min(100% - 48px, 1160px); margin: 0 auto; flex: 1; display: grid; }
     .step {
       min-height: calc(100vh - 78px);
@@ -108,6 +109,9 @@
     .escape-button { border: 0; background: transparent; color: var(--muted); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; transition: transform .18s; }
     .escape-button:hover { transform: translateX(18px) rotate(-2deg); color: var(--accent-dark); }
     .nav-note { min-height: 18px; margin: 15px 0 0; color: var(--accent-dark); font-size: 11px; }
+    .inspection-stamp { position: fixed; left: 50%; top: 50%; z-index: 30; padding: 16px 20px; border: 4px solid #9b3427; color: #9b3427; background: rgba(247,235,216,.94); font-size: clamp(22px, 5vw, 42px); font-weight: 700; letter-spacing: .04em; transform: translate(-50%, -50%) rotate(-8deg); animation: rejectStamp .55s cubic-bezier(.2,1.4,.4,1) both; pointer-events: none; }
+    .result-certificate { width: min(100%, 630px); margin: 0 auto 30px; padding: 14px 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 18px; color: var(--muted); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+    .result-certificate strong { color: var(--ink); font-weight: 700; }
     .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(33,30,25,.36); }
     .rules-overlay.hidden { display: none; }
     .rules-dialog { width: min(100%, 620px); border: 2px solid var(--ink); background: var(--paper); padding: 28px; box-shadow: 10px 10px 0 rgba(33,30,25,.22); text-align: left; animation: enter .4s ease both; }
@@ -146,6 +150,7 @@
     @keyframes enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes stamp { from { opacity: 0; transform: rotate(-11deg) scale(.6); } to { opacity: 1; transform: rotate(-3deg) scale(1); } }
     @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+    @keyframes rejectStamp { from { opacity: 0; transform: translate(-50%, -50%) rotate(-18deg) scale(2.2); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-8deg) scale(1); } }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes progress { to { width: 100%; } }
     @media (max-width: 600px) {
@@ -158,6 +163,7 @@
       .tick { transform-origin: 1px calc((45vw) - 27px); }
       .spin-readout { gap: 14px; }
       .counter { min-width: 108px; }
+      .result-certificate { flex-wrap: wrap; justify-content: center; }
       .answer-form { flex-direction: column; width: min(100%, 260px); }
       .answer-input { width: 100%; }
       .footer-note { display: none; }
@@ -190,6 +196,7 @@
   <div class="app-shell">
     <header class="masthead">
       <div class="wordmark">Watch Accuracy Verifier</div>
+      <div class="bureaucracy-score" id="bureaucracyScore">Bureaucracy score: 0</div>
       <div class="file-number">Bureau of Temporal Standards / Form 03-B</div>
     </header>
     <main>
@@ -244,6 +251,7 @@
         <div class="status-line"></div>
         <h2 class="result-title" id="resultTitle">Your watch is accurate!</h2>
         <p class="result-detail" id="resultDetail">The declared time and the present moment are within one minute of each other.</p>
+        <div class="result-certificate"><span>Case <strong id="caseNumber">WAV-0000</strong></span><span>Issued <strong id="issuedAt">--:--</strong></span><span>Status <strong>Certified</strong></span></div>
         <button class="secondary-button" id="checkAgain" type="button">Check again</button>
       </section>
     </main>
@@ -268,6 +276,9 @@
       const rulesAccept = document.getElementById('rulesAccept');
       const rulesReject = document.getElementById('rulesReject');
       const rulesNote = document.getElementById('rulesNote');
+      const bureaucracyScore = document.getElementById('bureaucracyScore');
+      const caseNumber = document.getElementById('caseNumber');
+      const issuedAt = document.getElementById('issuedAt');
       const complianceCheck = document.getElementById('complianceCheck');
       const escapeButton = document.getElementById('escapeButton');
       const navNote = document.getElementById('navNote');
@@ -287,6 +298,16 @@
       let arithmeticAnswer = 0;
       let declaredTime = null;
       let escapeCount = 0;
+      let score = 0;
+
+      function addScore(points = 1) {
+        score += points;
+        bureaucracyScore.textContent = `Bureaucracy score: ${score}`;
+      }
+
+      function showWarning(message) {
+        navNote.textContent = message;
+      }
 
       rulesConsent.addEventListener('change', () => {
         rulesAccept.disabled = !rulesConsent.checked;
@@ -295,6 +316,7 @@
       rulesAccept.addEventListener('click', () => {
         rulesOverlay.classList.add('hidden');
         document.body.style.overflow = '';
+        addScore();
         hourHand.focus();
       });
 
@@ -333,8 +355,15 @@
       function beginDrag(event, hand) {
         event.preventDefault();
         activeHand = hand;
-        if (hand === 'hour') hourInteracted = true;
-        else minuteInteracted = true;
+        if (hand === 'hour') {
+          if (!hourInteracted) addScore();
+          hourInteracted = true;
+          showWarning('Hour hand accepted. Please continue with the minute hand.');
+        } else {
+          if (!minuteInteracted) addScore();
+          minuteInteracted = true;
+          showWarning('Minute hand accepted. The bureau is now watching closely.');
+        }
         lastAngle = angleAt(event);
         const element = hand === 'hour' ? hourHand : minuteHand;
         element.classList.add('dragging');
@@ -384,6 +413,11 @@
 
       function reset() {
         hourRotations = 0; minuteRotations = 0; hourProgress = 0; minuteProgress = 0; hourInteracted = false; minuteInteracted = false; period = null; declaredTime = null;
+        score = 0;
+        escapeCount = 0;
+        bureaucracyScore.textContent = 'Bureaucracy score: 0';
+        escapeButton.textContent = 'I would rather check my phone';
+        escapeButton.style.transform = '';
         updateHand('hour', 0); updateHand('minute', 0);
         periodButtons.forEach(button => button.classList.remove('selected'));
         complianceCheck.checked = false;
@@ -402,6 +436,9 @@
         const resultTitle = document.getElementById('resultTitle');
         const resultDetail = document.getElementById('resultDetail');
         const resultSeal = document.getElementById('resultSeal');
+        const nowLabel = new Date();
+        caseNumber.textContent = `WAV-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+        issuedAt.textContent = nowLabel.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         if (Math.abs(difference) <= 1) {
           resultTitle.textContent = 'Your watch is accurate!';
           resultDetail.textContent = 'The declared time and the present moment are within one minute of each other.';
@@ -444,11 +481,19 @@
 
       periodButtons.forEach(button => button.addEventListener('click', () => {
         period = button.dataset.period;
+        addScore();
+        showWarning(`The ${period} designation has been logged for no defensible reason.`);
         periodButtons.forEach(item => item.classList.toggle('selected', item === button));
         updateConfirmState();
       }));
 
-      complianceCheck.addEventListener('change', updateConfirmState);
+      complianceCheck.addEventListener('change', () => {
+        if (complianceCheck.checked) {
+          addScore();
+          showWarning('Compliance recorded. You are doing very well at unnecessary tasks.');
+        }
+        updateConfirmState();
+      });
 
       escapeButton.addEventListener('click', () => {
         escapeCount++;
@@ -459,7 +504,9 @@
           'The bureau admires your persistence.'
         ];
         navNote.textContent = messages[Math.min(escapeCount - 1, messages.length - 1)];
+        addScore();
         escapeButton.textContent = escapeCount > 2 ? 'Try escaping again' : 'I would rather check my phone';
+        escapeButton.style.transform = `translateX(${Math.min(escapeCount * 12, 48)}px) rotate(${escapeCount % 2 ? -2 : 2}deg)`;
       });
 
       confirmTime.addEventListener('click', () => {
@@ -477,9 +524,16 @@
           answerForm.classList.remove('wrong');
           void answerForm.offsetWidth;
           answerForm.classList.add('wrong');
-          setTimeout(reset, 550);
+          addScore(2);
+          const stamp = document.createElement('div');
+          stamp.className = 'inspection-stamp';
+          stamp.textContent = 'DECLARATION REJECTED';
+          document.body.appendChild(stamp);
+          setTimeout(() => stamp.remove(), 900);
+          setTimeout(reset, 950);
           return;
         }
+        addScore();
         showStep('verify');
         setTimeout(finishVerification, 2600);
       });
