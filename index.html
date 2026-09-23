@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watch Accuracy Verifier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #eee7d8;
+      --ink: #211e19;
+      --muted: #766b5c;
+      --line: #c4b8a4;
+      --accent: #b77a2e;
+      --accent-dark: #82521d;
+      --white: #f8f1e2;
+      --serif: "Fraunces", Georgia, serif;
+      --sans: "DM Sans", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 50% 18%, rgba(255,255,255,.42), transparent 38%), var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .23;
+      background-image: radial-gradient(#9e9a90 .45px, transparent .45px);
+      background-size: 5px 5px;
+      mask-image: linear-gradient(to bottom, black, transparent 90%);
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+    .masthead {
+      width: min(100% - 48px, 1160px);
+      margin: 0 auto;
+      padding: 25px 0 19px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      position: relative;
+      z-index: 1;
+    }
+    .wordmark { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .file-number { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+    main { width: min(100% - 48px, 1160px); margin: 0 auto; flex: 1; display: grid; }
+    .step {
+      min-height: calc(100vh - 78px);
+      padding: clamp(38px, 6vh, 70px) 0 58px;
+      display: none;
+      align-content: start;
+      justify-items: center;
+      text-align: center;
+      animation: enter .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .step.active { display: grid; }
+    .step-kicker { color: var(--accent-dark); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 22px; }
+    h1, h2, .equation, .result-title { font-family: var(--serif); font-weight: 600; letter-spacing: -.035em; }
+    h1 { max-width: 700px; font-size: clamp(42px, 6vw, 80px); line-height: .98; margin: 0 0 18px; }
+    .intro { max-width: 410px; margin: 0 0 34px; color: var(--muted); font-size: 15px; line-height: 1.55; }
+    .clock-layout { width: min(100%, 880px); margin-top: 5px; display: grid; justify-items: center; }
+    .clock-meta { width: min(100%, 790px); display: flex; justify-content: space-between; gap: 20px; padding: 0 0 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .clock-wrap { position: relative; width: min(84vw, 560px); aspect-ratio: 1; margin: 24px auto 30px; }
+    .clock-face {
+      position: absolute; inset: 0; border: 12px solid #8b6336; border-radius: 50%; background: radial-gradient(circle at 42% 35%, #fff9e9 0, #eee0c3 58%, #d0b88a 100%);
+      box-shadow: 0 18px 30px rgba(72,52,27,.2), inset 0 0 0 3px #d9bd83, inset 0 0 0 7px #4d351e, inset 0 0 0 12px #b88b4d, inset 0 0 0 16px #4d351e, inset 0 0 0 20px #ead7ae;
+      user-select: none; touch-action: none;
+    }
+    .clock-face::before { content: ""; position: absolute; inset: 24px; border: 1px solid rgba(92,60,25,.5); border-radius: 50%; box-shadow: 0 0 0 4px rgba(255,248,220,.32), inset 0 0 18px rgba(92,60,25,.16); pointer-events: none; }
+    .clock-face::after { content: ""; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; background: var(--accent); border: 2px solid var(--ink); border-radius: 50%; transform: translate(-50%, -50%); z-index: 6; }
+    .tick { position: absolute; width: 2px; height: 12px; left: calc(50% - 1px); top: 15px; background: var(--ink); transform-origin: 1px calc((min(42vw, 280px)) - 27px); }
+    .tick.major { width: 3px; left: calc(50% - 1.5px); height: 19px; top: 13px; }
+    .number { position: absolute; color: #533a21; font-family: var(--serif); font-size: clamp(20px, 3vw, 28px); font-weight: 700; transform: translate(-50%, -50%); text-shadow: 1px 1px 0 #f9edcf; }
+    .number.n12 { left: 50%; top: 10%; } .number.n3 { left: 90%; top: 50%; } .number.n6 { left: 50%; top: 90%; } .number.n9 { left: 10%; top: 50%; }
+    .hand { position: absolute; left: 50%; bottom: 50%; width: 8px; border-radius: 8px 8px 2px 2px; background: #392516; transform-origin: 50% 100%; transform: translateX(-50%) rotate(0deg); z-index: 4; box-shadow: 2px 3px 5px rgba(26,26,26,.24); transition: transform .36s cubic-bezier(.16,1.2,.35,1); touch-action: none; }
+    .hand.hour { height: 29%; width: 13px; }
+    .hand.minute { height: 40%; width: 8px; background: #68431f; }
+    .hand.dragging { transition: none; cursor: grabbing; }
+    .hand::before { content: ""; position: absolute; bottom: -7px; left: 50%; width: 30px; height: 30px; transform: translateX(-50%); border: 3px double #e0b66d; background: #51351e; border-radius: 50%; }
+    .hand::after { content: ""; position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 19px; height: 19px; background: #392516; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+    .clock-footnote { max-width: 600px; margin: 0 0 23px; color: var(--muted); font-family: var(--serif); font-size: 17px; }
+    .spin-readout { display: flex; gap: 75px; justify-content: center; margin-bottom: 24px; }
+    .counter { min-width: 160px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .counter strong { display: block; color: var(--accent-dark); font-family: var(--serif); font-size: 30px; line-height: 1; }
+    .counter span { display: block; color: var(--muted); font-size: 11px; margin-top: 7px; }
+    .period-toggle { display: inline-flex; border: 1px solid var(--ink); background: transparent; padding: 3px; margin-bottom: 26px; }
+    .period-toggle button { color: var(--muted); background: transparent; border: 0; padding: 9px 16px; font-size: 12px; font-weight: 700; }
+    .period-toggle button.selected { color: var(--ink); background: var(--accent); }
+    .primary-button { border: 1px solid var(--ink); background: var(--ink); color: var(--paper); padding: 15px 25px; font-size: 13px; font-weight: 700; transition: background .2s, color .2s, transform .2s; }
+    .primary-button:hover { background: var(--accent); color: var(--ink); transform: translateY(-2px); }
+    .primary-button:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+    .secondary-button { border: 1px solid var(--ink); color: var(--ink); background: transparent; padding: 13px 24px; font-size: 13px; font-weight: 700; }
+    .secondary-button:hover { background: var(--ink); color: var(--paper); }
+    .math-stage { align-content: center; }
+    .math-stage .step-kicker { margin-bottom: 30px; }
+    .equation { font-size: clamp(34px, 6vw, 72px); line-height: 1.1; margin: 0 0 36px; max-width: 900px; }
+    .answer-form { display: flex; gap: 10px; align-items: stretch; }
+    .answer-input { width: 180px; border: 1px solid var(--ink); background: var(--white); color: var(--ink); padding: 14px 16px; font-size: 18px; text-align: center; outline: none; }
+    .answer-input:focus { border-color: var(--accent-dark); box-shadow: 0 0 0 3px rgba(232,161,61,.22); }
+    .math-note { color: var(--muted); font-size: 12px; margin-top: 20px; }
+    .wrong { animation: shake .45s ease both; }
+    .verify-stage { align-content: center; }
+    .verify-stage h2 { font-size: clamp(42px, 7vw, 82px); margin: 0 0 14px; }
+    .verify-stage p { color: var(--muted); font-size: 14px; }
+    .progress-track { width: min(100%, 470px); height: 3px; margin-top: 38px; background: var(--line); overflow: hidden; }
+    .progress-bar { width: 0; height: 100%; background: var(--accent); animation: progress 2.5s cubic-bezier(.4,0,.2,1) forwards; }
+    .loader-ring { width: 35px; height: 35px; margin: 0 auto 24px; border: 3px solid var(--line); border-top-color: var(--accent-dark); border-radius: 50%; animation: spin .8s linear infinite; }
+    .result-stage { align-content: center; }
+    .result-seal { width: 96px; height: 96px; display: grid; place-items: center; border: 2px solid var(--ink); background: var(--accent); margin-bottom: 27px; font-size: 42px; animation: stamp .7s cubic-bezier(.2,1.45,.4,1) both; }
+    .result-title { max-width: 720px; font-size: clamp(39px, 6vw, 73px); line-height: 1; margin: 0 0 18px; }
+    .result-detail { color: var(--muted); font-size: 15px; margin: 0 0 35px; }
+    .status-line { height: 1px; width: 80px; background: var(--accent); margin: 0 auto 31px; }
+    .footer-note { position: fixed; bottom: 18px; left: 24px; color: var(--muted); font-size: 10px; letter-spacing: .03em; }
+    @keyframes enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes stamp { from { opacity: 0; transform: rotate(-11deg) scale(.6); } to { opacity: 1; transform: rotate(-3deg) scale(1); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes progress { to { width: 100%; } }
+    @media (max-width: 600px) {
+      .masthead, main { width: min(100% - 32px, 1160px); }
+      .masthead { padding-top: 18px; }
+      .file-number { display: none; }
+      .step { min-height: calc(100vh - 64px); padding-top: 43px; }
+      .clock-meta { font-size: 9px; }
+      .clock-wrap { width: min(90vw, 420px); }
+      .tick { transform-origin: 1px calc((45vw) - 27px); }
+      .spin-readout { gap: 14px; }
+      .counter { min-width: 108px; }
+      .answer-form { flex-direction: column; width: min(100%, 260px); }
+      .answer-input { width: 100%; }
+      .footer-note { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="masthead">
+      <div class="wordmark">Watch Accuracy Verifier</div>
+      <div class="file-number">Bureau of Temporal Standards / Form 03-B</div>
+    </header>
+    <main>
+      <section class="step active clock-stage" id="clockStep" aria-labelledby="clockTitle">
+        <p class="step-kicker">Step 1 of 3 / Manual time declaration</p>
+        <h1 id="clockTitle">What time does your watch currently show?</h1>
+        <p class="intro">For the integrity of this investigation, your watch cannot simply be looked at. Please recreate its reading by hand.</p>
+        <div class="clock-layout">
+          <div class="clock-meta"><span>Instrument: wristwatch</span><span>Method: manual rotation</span><span>Accuracy: pending</span></div>
+          <div class="clock-wrap" id="clockWrap" aria-label="Interactive analog clock">
+            <div class="clock-face" id="clockFace">
+              <span class="number n12">XII</span><span class="number n3">III</span><span class="number n6">VI</span><span class="number n9">IX</span>
+              <span class="tick major" style="transform:rotate(30deg)"></span><span class="tick" style="transform:rotate(60deg)"></span><span class="tick major" style="transform:rotate(90deg)"></span><span class="tick" style="transform:rotate(120deg)"></span><span class="tick major" style="transform:rotate(150deg)"></span><span class="tick" style="transform:rotate(180deg)"></span><span class="tick major" style="transform:rotate(210deg)"></span><span class="tick" style="transform:rotate(240deg)"></span><span class="tick major" style="transform:rotate(270deg)"></span><span class="tick" style="transform:rotate(300deg)"></span><span class="tick major" style="transform:rotate(330deg)"></span>
+              <div class="hand hour" id="hourHand" role="slider" aria-label="Hour hand rotations" tabindex="0"></div>
+              <div class="hand minute" id="minuteHand" role="slider" aria-label="Minute hand rotations" tabindex="0"></div>
+            </div>
+          </div>
+          <p class="clock-footnote">Rotate each hand until the instrument agrees with your memory.</p>
+          <div class="spin-readout" aria-live="polite">
+            <div class="counter"><strong id="hourCount">0</strong><span>hour rotations</span></div>
+            <div class="counter"><strong id="minuteCount">0</strong><span>minute rotations</span></div>
+          </div>
+          <div class="period-toggle" aria-label="AM or PM">
+            <button type="button" data-period="AM">AM</button><button type="button" data-period="PM">PM</button>
+          </div>
+          <button class="primary-button" id="confirmTime" type="button" disabled>Confirm this is my watch's time</button>
+        </div>
+      </section>
+
+      <section class="step math-stage" id="mathStep" aria-labelledby="mathTitle">
+        <p class="step-kicker">Step 2 of 3 / Arithmetic authorization</p>
+        <h2 id="mathTitle" class="equation">58 + 24 × 2 - 17</h2>
+        <form class="answer-form" id="answerForm">
+          <input class="answer-input" id="answerInput" type="number" inputmode="numeric" autocomplete="off" aria-label="Arithmetic answer" placeholder="Your answer">
+          <button class="primary-button" type="submit">Submit answer</button>
+        </form>
+        <p class="math-note">First fix your attention span with a little mental maths</p>
+      </section>
+
+      <section class="step verify-stage" id="verifyStep" aria-labelledby="verifyTitle">
+        <div class="loader-ring" aria-hidden="true"></div>
+        <h2 id="verifyTitle">Verifying...</h2>
+        <p>Comparing your declaration against the continuous present.</p>
+        <div class="progress-track" aria-hidden="true"><div class="progress-bar"></div></div>
+      </section>
+
+      <section class="step result-stage" id="resultStep" aria-labelledby="resultTitle">
+        <div class="result-seal" id="resultSeal" aria-hidden="true">✓</div>
+        <div class="status-line"></div>
+        <h2 class="result-title" id="resultTitle">Your watch is accurate!</h2>
+        <p class="result-detail" id="resultDetail">The declared time and the present moment are within one minute of each other.</p>
+        <button class="secondary-button" id="checkAgain" type="button">Check again</button>
+      </section>
+    </main>
+    <div class="footer-note">An entirely unnecessary service of the public interest.</div>
+  </div>
+  <script>
+    (() => {
+      const steps = {
+        clock: document.getElementById('clockStep'),
+        math: document.getElementById('mathStep'),
+        verify: document.getElementById('verifyStep'),
+        result: document.getElementById('resultStep')
+      };
+      const hourHand = document.getElementById('hourHand');
+      const minuteHand = document.getElementById('minuteHand');
+      const clockFace = document.getElementById('clockFace');
+      const hourCount = document.getElementById('hourCount');
+      const minuteCount = document.getElementById('minuteCount');
+      const confirmTime = document.getElementById('confirmTime');
+      const answerForm = document.getElementById('answerForm');
+      const answerInput = document.getElementById('answerInput');
+      const equation = document.getElementById('mathTitle');
+      const periodButtons = [...document.querySelectorAll('[data-period]')];
+      let hourRotations = 0;
+      let minuteRotations = 0;
+      let hourProgress = 0;
+      let minuteProgress = 0;
+      let period = null;
+      let activeHand = null;
+      let lastAngle = null;
+      let hourInteracted = false;
+      let minuteInteracted = false;
+      let arithmeticAnswer = 0;
+      let declaredTime = null;
+
+      function showStep(name) {
+        Object.values(steps).forEach(step => step.classList.remove('active'));
+        steps[name].classList.add('active');
+      }
+
+      function angleAt(event) {
+        const rect = clockFace.getBoundingClientRect();
+        return Math.atan2(event.clientY - (rect.top + rect.height / 2), event.clientX - (rect.left + rect.width / 2)) * 180 / Math.PI + 90;
+      }
+
+      function normalizeAngle(angle) {
+        return (angle + 360) % 360;
+      }
+
+      function updateHand(hand, count, progress = count) {
+        const degrees = hand === 'hour' ? (progress % 12) * 30 : (progress % 60) * 6;
+        const element = hand === 'hour' ? hourHand : minuteHand;
+        element.style.transform = `translateX(-50%) rotate(${degrees}deg)`;
+        (hand === 'hour' ? hourCount : minuteCount).textContent = count;
+      }
+
+      function beginDrag(event, hand) {
+        event.preventDefault();
+        activeHand = hand;
+        if (hand === 'hour') hourInteracted = true;
+        else minuteInteracted = true;
+        lastAngle = angleAt(event);
+        const element = hand === 'hour' ? hourHand : minuteHand;
+        element.classList.add('dragging');
+        element.setPointerCapture(event.pointerId);
+      }
+
+      function drag(event) {
+        if (!activeHand) return;
+        const angle = angleAt(event);
+        let delta = normalizeAngle(angle - lastAngle);
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        const sensitivity = activeHand === 'hour' ? 1 : 60;
+        const current = activeHand === 'hour' ? hourProgress : minuteProgress;
+        const next = Math.max(0, current + delta * sensitivity / 360);
+        const whole = Math.floor(next);
+        if (activeHand === 'hour') {
+          hourProgress = next;
+          hourRotations = whole;
+        } else {
+          minuteProgress = next;
+          minuteRotations = whole;
+        }
+        lastAngle = angle;
+        updateHand(activeHand, whole, next);
+        confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+      }
+
+      function endDrag() {
+        if (!activeHand) return;
+        (activeHand === 'hour' ? hourHand : minuteHand).classList.remove('dragging');
+        activeHand = null;
+        lastAngle = null;
+      }
+
+      function randomProblem() {
+        const first = 20 + Math.floor(Math.random() * 40);
+        const second = 10 + Math.floor(Math.random() * 35);
+        const third = 5 + Math.floor(Math.random() * 25);
+        const fourth = 10 + Math.floor(Math.random() * 35);
+        const multiplier = 2 + Math.floor(Math.random() * 4);
+        const fifth = 15 + Math.floor(Math.random() * 35);
+        const sixth = 5 + Math.floor(Math.random() * 20);
+        arithmeticAnswer = first + second - third + fourth * multiplier + fifth - sixth;
+        equation.textContent = `${first} + ${second} - ${third} + ${fourth} × ${multiplier} + ${fifth} - ${sixth}`;
+      }
+
+      function reset() {
+        hourRotations = 0; minuteRotations = 0; hourProgress = 0; minuteProgress = 0; hourInteracted = false; minuteInteracted = false; period = null; declaredTime = null;
+        updateHand('hour', 0); updateHand('minute', 0);
+        periodButtons.forEach(button => button.classList.remove('selected'));
+        confirmTime.disabled = true;
+        answerInput.value = '';
+        showStep('clock');
+      }
+
+      function finishVerification() {
+        const now = new Date();
+        const actualMinutes = now.getHours() * 60 + now.getMinutes();
+        let difference = declaredTime - actualMinutes;
+        if (difference > 720) difference -= 1440;
+        if (difference < -720) difference += 1440;
+        const resultTitle = document.getElementById('resultTitle');
+        const resultDetail = document.getElementById('resultDetail');
+        const resultSeal = document.getElementById('resultSeal');
+        if (Math.abs(difference) <= 1) {
+          resultTitle.textContent = 'Your watch is accurate!';
+          resultDetail.textContent = 'The declared time and the present moment are within one minute of each other.';
+          resultSeal.textContent = '✓';
+        } else if (difference > 0) {
+          resultTitle.textContent = `Your watch is running ${difference} minute${difference === 1 ? '' : 's'} fast`;
+          resultDetail.textContent = 'This result has been certified despite the fact that checking a phone would have been easier.';
+          resultSeal.textContent = '⏩';
+        } else {
+          const slow = Math.abs(difference);
+          resultTitle.textContent = `Your watch is running ${slow} minute${slow === 1 ? '' : 's'} slow`;
+          resultDetail.textContent = 'The declared time is behind the present moment. Please allow time to recover from this finding.';
+          resultSeal.textContent = '⏪';
+        }
+        showStep('result');
+      }
+
+      [hourHand, minuteHand].forEach((element, index) => {
+        const hand = index === 0 ? 'hour' : 'minute';
+        element.addEventListener('pointerdown', event => beginDrag(event, hand));
+        element.addEventListener('pointermove', drag);
+        element.addEventListener('pointerup', endDrag);
+        element.addEventListener('pointercancel', endDrag);
+        element.addEventListener('keydown', event => {
+          if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (hand === 'hour') {
+              hourProgress++;
+              hourRotations = Math.floor(hourProgress);
+              updateHand('hour', hourRotations, hourProgress);
+            } else {
+              minuteProgress++;
+              minuteRotations = Math.floor(minuteProgress);
+              updateHand('minute', minuteRotations, minuteProgress);
+            }
+            confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+          }
+        });
+      });
+
+      periodButtons.forEach(button => button.addEventListener('click', () => {
+        period = button.dataset.period;
+        periodButtons.forEach(item => item.classList.toggle('selected', item === button));
+        confirmTime.disabled = !(hourInteracted && minuteInteracted && period);
+      }));
+
+      confirmTime.addEventListener('click', () => {
+        const hour = hourRotations % 12 || 12;
+        const minute = minuteRotations % 60;
+        declaredTime = (period === 'PM' ? (hour % 12) + 12 : hour % 12) * 60 + minute;
+        randomProblem();
+        showStep('math');
+        setTimeout(() => answerInput.focus(), 350);
+      });
+
+      answerForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (Number(answerInput.value) !== arithmeticAnswer) {
+          answerForm.classList.remove('wrong');
+          void answerForm.offsetWidth;
+          answerForm.classList.add('wrong');
+          setTimeout(reset, 550);
+          return;
+        }
+        showStep('verify');
+        setTimeout(finishVerification, 2600);
+      });
+
+      document.getElementById('checkAgain').addEventListener('click', reset);
+    })();
+  </script>
+</body>
+</html>
